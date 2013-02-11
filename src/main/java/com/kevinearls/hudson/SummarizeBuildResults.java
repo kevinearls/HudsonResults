@@ -304,8 +304,7 @@ public class SummarizeBuildResults {
 	 */
 	public static void main(String[] args) throws JAXBException, IOException {
         HSSFWorkbook workbook = new HSSFWorkbook();
-		String testRoot = ".";
-		testRoot="/Users/kearls/mytools/junit-results-analyzer/jobs";
+		String testRoot ="/mnt/hudson/jobs";
 		if (args.length > 0) {
 			testRoot = args[0];
 		} 
@@ -333,7 +332,7 @@ class PlatformDirectoryFilter implements FileFilter {	// TODO change to FileName
 	public boolean accept(File pathname) {
 		// TODO test for isDirectory too?
 		String name = pathname.getName();
-		if ((name.contains("7-2") || name.contains("7.2")) && (name.endsWith("-platform"))) {
+        if ((name.equalsIgnoreCase("fuseenterprise-master-platform")) || ((name.contains("7-2") || name.contains("7.2")) && (name.endsWith("-platform")))) {
 			return true;
 		} else {
 			return false;
