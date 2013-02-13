@@ -29,6 +29,13 @@ import java.util.*;
  *
  */
 public class SummarizeBuildResults {
+
+    private static final String passedTdOpenTag = "<td style=\"background-color: #adff2f;\">";
+    private static final String failedTestsTdOpenTag = "<td style=\"background-color: #ffff00;\">";
+    private static final String failedBuildTdOpenTag =  "<td style=\"background-color: #dc143c;\">";
+    private static final String tdCloseTag = "</td>";
+
+
 	private static Unmarshaller unmarshaller = null;
 	static {
 		try {
@@ -168,6 +175,74 @@ public class SummarizeBuildResults {
         summarySheet.setColumnWidth(0, 40 * 256);   // Cell widths are in units of 1/256 of a character
 	}
 
+    /**
+     * Create the summary as an HTML table which can be pasted into a DOCSPACE page
+     *
+     * @param root
+     * @throws JAXBException
+     * @throws IOException
+     */
+    public void createHTMLSummary(File root) throws JAXBException, IOException {
+
+        String style = "<style><!--\n" +
+                "table { border-collapse: collapse; font-family: Futura, Arial, sans-serif; } caption { font-size: larger; margin: 1em auto; } th, td { padding: .65em; } th, thead { background: #000; color: #fff; border: 1px solid #000; } td { border: 1px solid #777; }\n" +
+                "--></style>";
+        System.out.println(style);
+        System.out.println("<table>");
+        printHtmlHeaders();
+
+        Map<String, List<BuildResult>> allResults = getAllResults(root);
+        List<String> projectNames = new ArrayList<String>(allResults.keySet());
+        Collections.sort(projectNames);
+        for (String projectName : projectNames) {
+            System.out.print("    <tr>");
+            List<BuildResult> buildResults = allResults.get(projectName);
+            Collections.reverse(buildResults);
+            Collections.sort(buildResults, new BuildResultComparator());
+
+            System.out.print("<td>" + projectName + "</td>");
+            for (PLATFORM platform : PLATFORM.values()) {
+                for (JDK jdk : JDK.values()) {
+                    for (BuildResult br: buildResults) {
+                        if (platform.equals(br.getPlatform()) && jdk.equals(br.getJdk()) ) {
+                            String testResult = br.getFailedTests() + "/" + br.getTestsRun();
+
+                            if (br.getResult().equalsIgnoreCase("success")) {
+                                System.out.print(passedTdOpenTag + testResult + tdCloseTag);
+                            } else if (br.getTestsRun().equals(0)) {
+                                System.out.print(failedBuildTdOpenTag + testResult + tdCloseTag);
+                            } else {
+                                System.out.print(failedTestsTdOpenTag + testResult + tdCloseTag);
+                            }
+                        }
+                    }
+
+                }
+            }
+            System.out.println("</tr>");
+        }
+
+        System.out.println("<table>");
+    }
+
+    /**
+     * Print the headers for the HTML summary
+     */
+    private void printHtmlHeaders() {
+        // Print headers
+        System.out.println("<thead>");
+        System.out.println("<tr>");
+        System.out.println("<td>Platform</td>");
+        for (PLATFORM platform : PLATFORM.values()) {
+            for (JDK jdk : JDK.values()) {
+                System.out.print("<td>" + platform + " " + jdk + "</td>");
+            }
+        }
+        System.out.println("</tr>");
+        System.out.println("</thead>");
+    }
+
+
     private HSSFCellStyle getFailedBuildCellStyle(HSSFWorkbook workbook, Font whiteFont) {
         HSSFCellStyle failedBuildStyle = workbook.createCellStyle();
         failedBuildStyle.setFillForegroundColor(HSSFColor.PINK.index);
@@ -252,50 +327,52 @@ public class SummarizeBuildResults {
 
 
     /**
+     * TODO summarize; exactly what does this return?
      *
      * @param root
      * @return
      */
-	private Map<String, List<BuildResult>> getAllResults(File root) throws IOException{
-		Map<String, List<BuildResult>> allResults = new HashMap<String, List<BuildResult>>();
-		List<File>platformDirectories = getPlatformDirectories(root);
-		for (File platformDirectory : platformDirectories) {
-			for (PLATFORM platform : PLATFORM.values()) {
-				for (JDK jdk : JDK.values()) {
-					String targetDirectoryName = platformDirectory.getAbsolutePath() + "/configurations/axis-jdk/" + jdk + "/axis-label/" + platform + "/builds/";
-					File latestBuildDirectory = getLatestBuildDirectory(new File(targetDirectoryName));
-					if (latestBuildDirectory != null) {
-						try {
-						String buildDateTime = latestBuildDirectory.getName(); 	// directory name of the build is date time in the format 2012-11-02_21-09-35
-						String latestBuildFileName = latestBuildDirectory.getAbsolutePath() + "/build.xml";
-						MatrixRunType mrt = getTestSuiteFromFile(latestBuildFileName);
-						ActionsType actions = mrt.getActions();
-						HudsonTasksJunitTestResultActionType junitResults = actions.getHudsonTasksJunitTestResultAction();
-						
-						BuildResult buildResult;
-						if (junitResults != null) {
-							buildResult = new BuildResult(platformDirectory.getName(),  buildDateTime, jdk, platform, mrt.getResult(), junitResults.getTotalCount(), junitResults.getFailCount(), mrt.getDuration());
-						} else {
-							buildResult = new BuildResult(platformDirectory.getName(),  buildDateTime, jdk, platform, mrt.getResult(), 0, 0, 0);
-						}
-						// TODO need to store by platformDirectory.getName() (which is projectname) jdk, platform
-						List<BuildResult> platformResults = allResults.get(platformDirectory.getName());
-						if (platformResults == null) {
-							platformResults = new ArrayList<BuildResult>();
-							allResults.put(platformDirectory.getName(), platformResults);
-						}
-						platformResults.add(buildResult);
-						} catch(Exception e) {
-							// TODO this could occur if the build is still running.
-							System.err.println("************ Exception " + e.getMessage() + " on " + latestBuildDirectory.getAbsolutePath());
-						}
-						
-					} 
-				}
-			}
-		}
-		return allResults;
-	}
+    private Map<String, List<BuildResult>> getAllResults(File root) throws IOException{
+        Map<String, List<BuildResult>> allResults = new HashMap<String, List<BuildResult>>();
+        List<File>platformDirectories = getPlatformDirectories(root);
+        for (File platformDirectory : platformDirectories) {
+            for (PLATFORM platform : PLATFORM.values()) {
+                for (JDK jdk : JDK.values()) {
+                    String targetDirectoryName = platformDirectory.getAbsolutePath() + "/configurations/axis-jdk/" + jdk + "/axis-label/" + platform + "/builds/";
+                    File latestBuildDirectory = getLatestBuildDirectory(new File(targetDirectoryName));
+                    if (latestBuildDirectory != null) {
+                        try {
+                            String buildDateTime = latestBuildDirectory.getName(); 	// directory name of the build is date time in the format 2012-11-02_21-09-35
+                            String latestBuildFileName = latestBuildDirectory.getAbsolutePath() + "/build.xml";
+                            MatrixRunType mrt = getTestSuiteFromFile(latestBuildFileName);
+                            ActionsType actions = mrt.getActions();
+                            HudsonTasksJunitTestResultActionType junitResults = actions.getHudsonTasksJunitTestResultAction();
+
+                            BuildResult buildResult;
+                            if (junitResults != null) {
+                                buildResult = new BuildResult(platformDirectory.getName(),  buildDateTime, jdk, platform, mrt.getResult(), junitResults.getTotalCount(), junitResults.getFailCount(), mrt.getDuration());
+                            } else {
+                                buildResult = new BuildResult(platformDirectory.getName(),  buildDateTime, jdk, platform, mrt.getResult(), 0, 0, 0);
+                            }
+                            // TODO need to store by platformDirectory.getName() (which is projectname) jdk, platform
+                            List<BuildResult> platformResults = allResults.get(platformDirectory.getName());
+                            if (platformResults == null) {
+                                platformResults = new ArrayList<BuildResult>();
+                                allResults.put(platformDirectory.getName(), platformResults);
+                            }
+                            platformResults.add(buildResult);
+                        } catch(Exception e) {
+                            // TODO this could occur if the build is still running.
+                            System.err.println("************ Exception " + e.getMessage() + " on " + latestBuildDirectory.getAbsolutePath());
+                        }
+
+                    }
+                }
+
+            }
+        }
+        return allResults;
+    }
 
 
 	/**
@@ -314,6 +391,7 @@ public class SummarizeBuildResults {
 		SummarizeBuildResults me = new SummarizeBuildResults();
 		File theRoot = new File(testRoot);
 		me.createSummary(theRoot, workbook);
+        me.createHTMLSummary(theRoot);
 
         FileOutputStream fileOut = new FileOutputStream("workbook.xls");
         workbook.write(fileOut);
