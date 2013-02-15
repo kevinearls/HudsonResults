@@ -13,10 +13,7 @@ import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
 import javax.xml.transform.stream.StreamSource;
-import java.io.File;
-import java.io.FileFilter;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 /**
@@ -46,8 +43,6 @@ public class SummarizeBuildResults {
 		}
 	}
 	
-	//Map<String, List<BuildResult>> allResults = new HashMap<String, List<BuildResult>>();
-	
 	/**
 	 * Use JAXB to create a MatrixRunType object from the file
 	 * 
@@ -62,8 +57,7 @@ public class SummarizeBuildResults {
 		return root.getValue(); 
 	}
 
-	
-	
+
 	/**
 	 * Return the latest build in a given build directory
 	 * 
@@ -85,7 +79,11 @@ public class SummarizeBuildResults {
             Collections.sort(contents, new BuildDirectoryComparator());
             Collections.reverse(contents);
 
-            return contents.get(0);
+            if (!contents.isEmpty()) {
+                return contents.get(0);
+            } else {
+                return null;
+            }
         } else {
             return null;
         }
@@ -184,23 +182,27 @@ public class SummarizeBuildResults {
      */
     public void createHTMLSummary(File root) throws JAXBException, IOException {
 
+        FileWriter writer = new FileWriter("result.html");  // TODO add date
+        writer.write("<html>");
+        writer.write("<body>");
         String style = "<style><!--\n" +
                 "table { border-collapse: collapse; font-family: Futura, Arial, sans-serif; } caption { font-size: larger; margin: 1em auto; } th, td { padding: .65em; } th, thead { background: #000; color: #fff; border: 1px solid #000; } td { border: 1px solid #777; }\n" +
                 "--></style>";
-        System.out.println(style);
-        System.out.println("<table>");
-        printHtmlHeaders();
+        writer.write(style);
+        writer.write("<table>");
+        writer.write("<caption>JBoss Fuse 6 Platform Test Results as of " + new Date().toString() + "</caption>");
+        printHtmlHeaders(writer);
 
         Map<String, List<BuildResult>> allResults = getAllResults(root);
         List<String> projectNames = new ArrayList<String>(allResults.keySet());
         Collections.sort(projectNames);
         for (String projectName : projectNames) {
-            System.out.print("    <tr>");
+            writer.write("    <tr>");
             List<BuildResult> buildResults = allResults.get(projectName);
             Collections.reverse(buildResults);
             Collections.sort(buildResults, new BuildResultComparator());
 
-            System.out.print("<td>" + projectName + "</td>");
+            writer.write("<td>" + projectName + "</td>");
             for (PLATFORM platform : PLATFORM.values()) {
                 for (JDK jdk : JDK.values()) {
                     for (BuildResult br: buildResults) {
@@ -208,38 +210,41 @@ public class SummarizeBuildResults {
                             String testResult = br.getFailedTests() + "/" + br.getTestsRun();
 
                             if (br.getResult().equalsIgnoreCase("success")) {
-                                System.out.print(passedTdOpenTag + testResult + tdCloseTag);
+                                writer.write(passedTdOpenTag + testResult + tdCloseTag);
                             } else if (br.getTestsRun().equals(0)) {
-                                System.out.print(failedBuildTdOpenTag + testResult + tdCloseTag);
+                                writer.write(failedBuildTdOpenTag + testResult + tdCloseTag);
                             } else {
-                                System.out.print(failedTestsTdOpenTag + testResult + tdCloseTag);
+                                writer.write(failedTestsTdOpenTag + testResult + tdCloseTag);
                             }
                         }
                     }
 
                 }
             }
-            System.out.println("</tr>");
+            writer.write("</tr>");
         }
 
-        System.out.println("<table>");
+        writer.write("<table>");
+        writer.write("</body>");
+        writer.write("</html>");
+        writer.close();
     }
 
     /**
      * Print the headers for the HTML summary
      */
-    private void printHtmlHeaders() {
+    private void printHtmlHeaders(FileWriter writer) throws IOException {
         // Print headers
-        System.out.println("<thead>");
-        System.out.println("<tr>");
-        System.out.println("<td>Platform</td>");
+        writer.write("<thead>");
+        writer.write("<tr>");
+        writer.write("<td>Platform</td>");
         for (PLATFORM platform : PLATFORM.values()) {
             for (JDK jdk : JDK.values()) {
-                System.out.print("<td>" + platform + " " + jdk + "</td>");
+                writer.write("<td>" + platform + " " + jdk + "</td>");
             }
         }
-        System.out.println("</tr>");
-        System.out.println("</thead>");
+        writer.write("</tr>");
+        writer.write("</thead>");
     }
 
 
@@ -382,6 +387,7 @@ public class SummarizeBuildResults {
 	public static void main(String[] args) throws JAXBException, IOException {
         HSSFWorkbook workbook = new HSSFWorkbook();
 		String testRoot ="/mnt/hudson/jobs";
+        testRoot="/Users/kearls/mytools/junit-results-analyzer/jobs/";
 		if (args.length > 0) {
 			testRoot = args[0];
 		} 
