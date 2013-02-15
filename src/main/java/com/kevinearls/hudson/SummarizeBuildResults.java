@@ -387,7 +387,7 @@ public class SummarizeBuildResults {
 	public static void main(String[] args) throws JAXBException, IOException {
         HSSFWorkbook workbook = new HSSFWorkbook();
 		String testRoot ="/mnt/hudson/jobs";
-        testRoot="/Users/kearls/mytools/junit-results-analyzer/jobs/";
+        //testRoot="/Users/kearls/mytools/junit-results-analyzer/jobs/";
 		if (args.length > 0) {
 			testRoot = args[0];
 		} 
