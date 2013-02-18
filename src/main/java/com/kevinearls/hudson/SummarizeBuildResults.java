@@ -35,9 +35,10 @@ public class SummarizeBuildResults {
     private static final String failedTestsTdOpenTag = "<td style=\"background-color: #ffd700;\">";
     private static final String failedBuildTdOpenTag =  "<td style=\"background-color: #dc143c;\">";
     private static final String tdCloseTag = "</td>";
+    public static final String NEW_LINE = "\n";
 
 
-	private static Unmarshaller unmarshaller = null;
+    private static Unmarshaller unmarshaller = null;
 	static {
 		try {
 			JAXBContext jaxbContext = JAXBContext.newInstance(MatrixRunType.class);
@@ -186,14 +187,15 @@ public class SummarizeBuildResults {
      */
     public void createHTMLSummary(File root) throws JAXBException, IOException {
         FileWriter writer = getResultFileWriter();
-        writer.write("<html>");
-        writer.write("<body>");
+        writer.write("<html>" + NEW_LINE);
+        writer.write("<body>" + NEW_LINE);
+        // TODO remove?
         String style = "<style><!--\n" +
                 "table { border-collapse: collapse; font-family: Futura, Arial, sans-serif; } caption { font-size: larger; margin: 1em auto; } th, td { padding: .65em; } th, thead { background: #000; color: #fff; border: 1px solid #000; } td { border: 1px solid #777; }\n" +
                 "--></style>";
-        writer.write(style);
-        writer.write("<table>");
-        writer.write("<caption>JBoss Fuse 6 Platform Test Results as of " + new Date().toString() + "</caption>");
+        writer.write(style + NEW_LINE);
+        writer.write("<table border=\"1\">"  + NEW_LINE);
+        writer.write("<caption>JBoss Fuse 6 Platform Test Results as of " + new Date().toString() + "</caption>" + NEW_LINE);
         printHtmlHeaders(writer);
 
         Map<String, List<BuildResult>> allResults = getAllResults(root);
@@ -224,16 +226,16 @@ public class SummarizeBuildResults {
 
                 }
             }
-            writer.write("</tr>");
+            writer.write("</tr> " + NEW_LINE);
         }
 
-        writer.write("<table>");
-        writer.write("<br/>");
+        writer.write("<table>" + NEW_LINE);
+        writer.write("<br/>" + NEW_LINE);
         writer.write("<p>Red cells indicate build failures, yellow cells indicate builds with test failures, green cells indicate successful builds.  ");
-        writer.write("Cell results N/M show N test failures out of M tests run</p>");
-        writer.write("<p></p>");
-        writer.write("</body>");
-        writer.write("</html>");
+        writer.write("Cell results N/M show N test failures out of M tests run</p>" + NEW_LINE);
+        writer.write("<p></p>" + NEW_LINE);
+        writer.write("</body>" + NEW_LINE);
+        writer.write("</html>" + NEW_LINE);
         writer.close();
     }
 
@@ -261,7 +263,7 @@ public class SummarizeBuildResults {
             }
         }
         writer.write("</tr>");
-        writer.write("</thead>");
+        writer.write("</thead>" + NEW_LINE);
     }
 
 
