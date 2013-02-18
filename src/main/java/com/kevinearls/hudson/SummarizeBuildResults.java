@@ -14,6 +14,7 @@ import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
 import javax.xml.transform.stream.StreamSource;
 import java.io.*;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
@@ -27,8 +28,11 @@ import java.util.*;
  */
 public class SummarizeBuildResults {
 
-    private static final String passedTdOpenTag = "<td style=\"background-color: #adff2f;\">";
-    private static final String failedTestsTdOpenTag = "<td style=\"background-color: #ffff00;\">";
+    //private static final String passedTdOpenTag = "<td style=\"background-color: #adff2f;\">";
+    //private static final String failedTestsTdOpenTag = "<td style=\"background-color: #ffff00;\">";
+    //private static final String failedBuildTdOpenTag =  "<td style=\"background-color: #dc143c;\">";
+    private static final String passedTdOpenTag = "<td style=\"background-color: #2E8B57;\">";
+    private static final String failedTestsTdOpenTag = "<td style=\"background-color: #ffd700;\">";
     private static final String failedBuildTdOpenTag =  "<td style=\"background-color: #dc143c;\">";
     private static final String tdCloseTag = "</td>";
 
@@ -181,8 +185,7 @@ public class SummarizeBuildResults {
      * @throws IOException
      */
     public void createHTMLSummary(File root) throws JAXBException, IOException {
-
-        FileWriter writer = new FileWriter("result.html");  // TODO add date
+        FileWriter writer = getResultFileWriter();
         writer.write("<html>");
         writer.write("<body>");
         String style = "<style><!--\n" +
@@ -206,7 +209,7 @@ public class SummarizeBuildResults {
             for (PLATFORM platform : PLATFORM.values()) {
                 for (JDK jdk : JDK.values()) {
                     for (BuildResult br: buildResults) {
-                        if (platform.equals(br.getPlatform()) && jdk.equals(br.getJdk()) ) {
+                        if (platform.equals(br.getPlatform()) && jdk.equals(br.getJdk()) && !(jdk.equals(JDK.jdk6) && platform.equals(PLATFORM.rhel))) {
                             String testResult = br.getFailedTests() + "/" + br.getTestsRun();
 
                             if (br.getResult().equalsIgnoreCase("success")) {
@@ -225,9 +228,21 @@ public class SummarizeBuildResults {
         }
 
         writer.write("<table>");
+        writer.write("<br/>");
+        writer.write("<p>Red cells indicate build failures, yellow cells indicate builds with test failures, green cells indicate successful builds.  ");
+        writer.write("Cell results N/M show N test failures out of M tests run</p>");
+        writer.write("<p></p>");
         writer.write("</body>");
         writer.write("</html>");
         writer.close();
+    }
+
+    private FileWriter getResultFileWriter() throws IOException {
+        Locale currentLocale =  Locale.getDefault();   // should be en_US
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMMdd", currentLocale);
+        Date today = new Date();
+        String resultFileName = "result" + formatter.format(today) + ".html";
+        return new FileWriter(resultFileName);
     }
 
     /**
@@ -240,7 +255,9 @@ public class SummarizeBuildResults {
         writer.write("<td>Platform</td>");
         for (PLATFORM platform : PLATFORM.values()) {
             for (JDK jdk : JDK.values()) {
-                writer.write("<td>" + platform + " " + jdk + "</td>");
+                if (!(jdk.equals(JDK.jdk6) && platform.equals(PLATFORM.rhel))) {
+                    writer.write("<td>" + platform + " " + jdk + "</td>");
+                }
             }
         }
         writer.write("</tr>");
@@ -387,9 +404,8 @@ public class SummarizeBuildResults {
 	public static void main(String[] args) throws JAXBException, IOException {
         HSSFWorkbook workbook = new HSSFWorkbook();
 		String testRoot ="/mnt/hudson/jobs";
-        //testRoot="/Users/kearls/mytools/junit-results-analyzer/jobs/";
 		if (args.length > 0) {
-			testRoot = args[0];
+            testRoot = args[0];
 		} 
 
 		
