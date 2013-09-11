@@ -14,28 +14,24 @@ import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
 import javax.xml.transform.stream.StreamSource;
 import java.io.*;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
- * Create a summary of result of the Platform and dualjdk results on Hudson in a single
- * csv report.
- * 
- * TODO explain
+ * Create a summary of result of the Platform builds on Hudson in a single html page
  * 
  * @author kearls
  *
  */
 public class SummarizeBuildResults {
 
-    //private static final String passedTdOpenTag = "<td style=\"background-color: #adff2f;\">";
-    //private static final String failedTestsTdOpenTag = "<td style=\"background-color: #ffff00;\">";
-    //private static final String failedBuildTdOpenTag =  "<td style=\"background-color: #dc143c;\">";
     private static final String passedTdOpenTag = "<td style=\"background-color: #2E8B57;\">";
     private static final String failedTestsTdOpenTag = "<td style=\"background-color: #ffd700;\">";
     private static final String failedBuildTdOpenTag =  "<td style=\"background-color: #dc143c;\">";
     private static final String tdCloseTag = "</td>";
     public static final String NEW_LINE = "\n";
+
+    // RE to select which test directories we want results from.
+    private static final String ACCEPT_STRING_RH_6_1 = ".*6[-\\.]1.*platform";
 
 
     private static Unmarshaller unmarshaller = null;
@@ -100,8 +96,8 @@ public class SummarizeBuildResults {
 	 * 
 	 * @param root this should be the root of the Hudson jobs directory
 	 */
-	private List<File> getPlatformDirectories(File root) {
-		PlatformDirectoryFilter pdf = new PlatformDirectoryFilter();
+	private List<File> getPlatformDirectories(File root, String directoryMatchExpression) {
+		PlatformDirectoryFilter pdf = new PlatformDirectoryFilter(directoryMatchExpression);
         File[] files = root.listFiles(pdf);
 		List<File> directories = Arrays.asList(files);
         Collections.sort(directories);
@@ -121,7 +117,7 @@ public class SummarizeBuildResults {
      * @param workbook
 	 * @throws JAXBException
 	 */
-	public void createSummary(File root, HSSFWorkbook workbook) throws JAXBException, IOException {
+	public void createSummary(File root, HSSFWorkbook workbook, String directoryMatchExpression) throws JAXBException, IOException {
         HSSFSheet summarySheet = workbook.createSheet("Summary");
         printSpreadsheetHeaders(workbook, summarySheet);
         int summaryRowIndex=2;
@@ -136,7 +132,7 @@ public class SummarizeBuildResults {
         HSSFCellStyle failedTestsStyle = getFailedTestsCellStyle(workbook, whiteFont);
         HSSFCellStyle failedBuildStyle = getFailedBuildCellStyle(workbook, whiteFont);
 
-        Map<String, List<BuildResult>> allResults = getAllResults(root);
+        Map<String, List<BuildResult>> allResults = getAllResults(root, directoryMatchExpression);
 
         List<String> projectNames = new ArrayList<String>(allResults.keySet());
 		Collections.sort(projectNames);
@@ -185,7 +181,7 @@ public class SummarizeBuildResults {
      * @throws JAXBException
      * @throws IOException
      */
-    public void createHTMLSummary(File root) throws JAXBException, IOException {
+    public void createHTMLSummary(File root, String directoryMatchExpression) throws JAXBException, IOException {
         FileWriter writer = getResultFileWriter();
         writer.write("<html>" + NEW_LINE);
         writer.write("<body>" + NEW_LINE);
@@ -198,7 +194,7 @@ public class SummarizeBuildResults {
         writer.write("<caption>JBoss Fuse 6 Platform Test Results as of " + new Date().toString() + "</caption>" + NEW_LINE);
         printHtmlHeaders(writer);
 
-        Map<String, List<BuildResult>> allResults = getAllResults(root);
+        Map<String, List<BuildResult>> allResults = getAllResults(root, directoryMatchExpression);
         List<String> projectNames = new ArrayList<String>(allResults.keySet());
         Collections.sort(projectNames);
         for (String projectName : projectNames) {
@@ -212,7 +208,7 @@ public class SummarizeBuildResults {
                 for (JDK jdk : JDK.values()) {
                     for (BuildResult br: buildResults) {
                         if (platform.equals(br.getPlatform()) && jdk.equals(br.getJdk()) && !(jdk.equals(JDK.jdk6) && platform.equals(PLATFORM.rhel))) {
-                            String testResult = br.getFailedTests() + "/" + br.getTestsRun();
+                            String testResult = br.getFailedTests() + "/" + br.getTestsRun() + "|" + br.getFormattedDuration();
 
                             if (br.getResult().equalsIgnoreCase("success")) {
                                 writer.write(passedTdOpenTag + testResult + tdCloseTag);
@@ -240,11 +236,15 @@ public class SummarizeBuildResults {
     }
 
     private FileWriter getResultFileWriter() throws IOException {
-        Locale currentLocale =  Locale.getDefault();   // should be en_US
+        /*Locale currentLocale =  Locale.getDefault();   // should be en_US
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMMdd", currentLocale);
         Date today = new Date();
         String resultFileName = "result" + formatter.format(today) + ".html";
-        return new FileWriter(resultFileName);
+        return new FileWriter(resultFileName); */
+        File resultsDir = new File("results");
+        resultsDir.mkdir();
+        String resultsFileName = "results/results.html";
+        return new FileWriter(resultsFileName);
     }
 
     /**
@@ -356,9 +356,9 @@ public class SummarizeBuildResults {
      * @param root
      * @return
      */
-    private Map<String, List<BuildResult>> getAllResults(File root) throws IOException{
+    private Map<String, List<BuildResult>> getAllResults(File root, String directoryMatchExpression) throws IOException{
         Map<String, List<BuildResult>> allResults = new HashMap<String, List<BuildResult>>();
-        List<File>platformDirectories = getPlatformDirectories(root);
+        List<File>platformDirectories = getPlatformDirectories(root, directoryMatchExpression);
         for (File platformDirectory : platformDirectories) {
             for (PLATFORM platform : PLATFORM.values()) {
                 for (JDK jdk : JDK.values()) {
@@ -404,9 +404,10 @@ public class SummarizeBuildResults {
 	 * @throws JAXBException 
 	 */
 	public static void main(String[] args) throws JAXBException, IOException {
-        HSSFWorkbook workbook = new HSSFWorkbook();
+        // HSSFWorkbook workbook = new HSSFWorkbook();      // TODO remove excel stuff?
 		String testRoot ="/mnt/hudson/jobs";
-		if (args.length > 0) {
+        testRoot = "/Users/kearls/.hudson/jobs/";
+		if (args.length > 0) {               // TODO add second parameter for RE
             testRoot = args[0];
 		} 
 
@@ -414,28 +415,44 @@ public class SummarizeBuildResults {
 		System.out.println("Starting at " + testRoot);
 		SummarizeBuildResults me = new SummarizeBuildResults();
 		File theRoot = new File(testRoot);
-		me.createSummary(theRoot, workbook);
-        me.createHTMLSummary(theRoot);
+		// me.createSummary(theRoot, workbook, ACCEPT_STRING_RH_6_1);
+        me.createHTMLSummary(theRoot, ACCEPT_STRING_RH_6_1);
 
-        FileOutputStream fileOut = new FileOutputStream("workbook.xls");
+        /*FileOutputStream fileOut = new FileOutputStream("workbook.xls");
         workbook.write(fileOut);
-        fileOut.close();
+        fileOut.close(); */
 	}
 
 }
 
 
 /**
- * Filter to select directories which contain 7.1 platform test results
+ * Filter to select directories which contain desired results
+ *
  * @author kearls
  *
  */
-class PlatformDirectoryFilter implements FileFilter {	// TODO change to FileNameFilter???
+class PlatformDirectoryFilter implements FileFilter {
+    final String DEFAULT_MATCH_STRING = "/*7[-\\.]1.*platform"; // TODO should this be removed?
+    String matchRegularExpression = "";
+
+    public PlatformDirectoryFilter() {
+        this.matchRegularExpression = DEFAULT_MATCH_STRING;
+    }
+
+    public PlatformDirectoryFilter(String target) {
+        this.matchRegularExpression = target;
+    }
+
 	public boolean accept(File pathname) {
-		// TODO test for isDirectory too?
 		String name = pathname.getName();
-        if ((name.equalsIgnoreCase("fuseenterprise-master-platform")) || ((name.contains("7-2") || name.contains("7.2")) && (name.endsWith("-platform")))) {
-			return true;
+        //if ((name.equalsIgnoreCase("fuseenterprise-master-platform")) || ((name.contains("7-2") || name.contains("7.2")) && (name.endsWith("-platform")))) {
+       //if (name.matches(".*7.*1.*-shipped"))
+        //if ((name.contains("7-1") || name.contains("7.1")) && (name.contains("shipped") && name.contains("platform"))) {
+        //if ((name.equalsIgnoreCase("fuseenterprise-master-platform")) || ((name.contains("7-2") || name.contains("7.2")) && (name.endsWith("-platform")))) {
+        //System.out.println(">>>> Matching [" + name + " ] using RE [" + matchRegularExpression + "]");
+        if (name.matches(matchRegularExpression)) {
+                return true;
 		} else {
 			return false;
 		}
