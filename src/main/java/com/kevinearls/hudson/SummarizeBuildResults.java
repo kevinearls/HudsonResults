@@ -40,6 +40,9 @@ public class SummarizeBuildResults {
     // RE to select which test directories we want results from.
     private static final String ACCEPT_STRING_RH_6_1 = ".*6[-\\.]1.*platform";
 
+    //
+    private static final String REPORT_URL_ROOT="http://ci.fusesource.com/hudson/job/";
+
     /**
      *
      */
@@ -157,7 +160,11 @@ public class SummarizeBuildResults {
                             // starting from http://localhost:8080/job/BuildResults/HTML_Report/ or
                             // http://localhost:8080/job/BuildResults/6/HTML_Report/
 
-                            String testResult = "<a href=\"\">" + br.getFailedTests() + "/" + br.getTestsRun() + "</a>"    // TODO turn into a link back to test result?
+                            // Need http://ci.fusesource.com/hudson/job/activemq-5.9.0.redhat-6-1-x-stable-platform/11/jdk=jdk7,label=ubuntu/
+                            String linkToResultsPage = REPORT_URL_ROOT + projectName + "/" + br.getBuildNumber() + "/" + "jdk=" + jdk + ",label=" + platform + "/";
+                            //System.out.println(">>>> got " + linkToResultsPage);
+
+                            String testResult = "<a href=\"" + linkToResultsPage + "\">" + br.getFailedTests() + "/" + br.getTestsRun() + "</a>"    // TODO turn into a link back to test result?
                                     + "<br/><small>(" + br.getFormattedDuration() + ")</small>";    // TODO this needs to be smaller.
                             if (br.getResult().equalsIgnoreCase("success")) {
                                 writer.write(passedTdOpenTag + testResult + tdCloseTag);
@@ -239,9 +246,10 @@ public class SummarizeBuildResults {
 
                             BuildResult buildResult;
                             if (junitResults != null) {
-                                buildResult = new BuildResult(platformDirectory.getName(),  buildDateTime, jdk, platform, mrt.getResult(), junitResults.getTotalCount(), junitResults.getFailCount(), mrt.getDuration());
+                                buildResult = new BuildResult(platformDirectory.getName(),  buildDateTime, jdk, platform,
+                                        mrt.getResult(), junitResults.getTotalCount(), junitResults.getFailCount(), mrt.getDuration(), mrt.getNumber());
                             } else {
-                                buildResult = new BuildResult(platformDirectory.getName(),  buildDateTime, jdk, platform, mrt.getResult(), 0, 0, 0);
+                                buildResult = new BuildResult(platformDirectory.getName(),  buildDateTime, jdk, platform, mrt.getResult(), 0, 0, 0, mrt.getNumber());
                             }
                             // TODO need to store by platformDirectory.getName() (which is projectname) jdk, platform
                             List<BuildResult> platformResults = allResults.get(platformDirectory.getName());
@@ -270,6 +278,7 @@ public class SummarizeBuildResults {
 	 */
 	public static void main(String[] args) throws JAXBException, IOException {
 		String testRoot ="/mnt/hudson/jobs";
+        testRoot="/Users/kearls/mytools/data/jobs";
         String directoryMatchString = ACCEPT_STRING_RH_6_1;
 
         System.out.println(">>> JAVA_HOME? " + System.getenv("JAVA_HOME"));

@@ -9,9 +9,8 @@ public class BuildResult {
     private Integer duration;
 	private JDK jdk;
 	private PLATFORM platform;	// i.e. Ubuntu, Windows, AIX
-	
-	
-	
+    private Integer buildNumber;
+
 	/**
 	 * 
 	 * @param name
@@ -22,7 +21,7 @@ public class BuildResult {
 	 * @param testsRun
 	 * @param testsFailed
 	 */
-	public BuildResult(String name, String runDate, JDK jdk, PLATFORM platform, String result, int testsRun, int testsFailed, int duration) {
+	public BuildResult(String name, String runDate, JDK jdk, PLATFORM platform, String result, int testsRun, int testsFailed, int duration, int buildNumber) {
 		this.name = name;
 		this.runDate = runDate;
 		this.jdk = jdk;
@@ -31,6 +30,7 @@ public class BuildResult {
 		this.testsRun = testsRun;
 		this.failedTests = testsFailed;
         this.duration = duration;
+        this.buildNumber = buildNumber;
 	}
 	
 	
@@ -39,7 +39,8 @@ public class BuildResult {
 	 */
 	@Override
 	public String toString() {
-		String s = name + "," + runDate + ", " + jdk + ", " + platform + ", " + getResult() + ", Tests run, " + testsRun + ", Failed ," + failedTests + " ,duration, " + getFormattedDuration();
+		String s = name + "," + runDate + ", " + jdk + ", " + platform + ", " + getResult() + ", Tests run, " + testsRun
+                + ", Failed ," + failedTests + " ,duration, " + getFormattedDuration() + " buildNumber " + buildNumber;
 		return s;
 	}
 	
@@ -96,6 +97,14 @@ public class BuildResult {
 
     public void setDuration(Integer duration) {
         this.duration = duration;
+    }
+
+    public Integer getBuildNumber() {
+        return buildNumber;
+    }
+
+    public void setBuildNumber(Integer buildNumber) {
+        this.buildNumber = buildNumber;
     }
 
     /**
