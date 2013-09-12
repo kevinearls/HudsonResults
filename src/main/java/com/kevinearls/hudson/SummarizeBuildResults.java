@@ -155,7 +155,9 @@ public class SummarizeBuildResults {
                             // Link needs to be something like:
                             // http://ci.fusesource.com/hudson/view/JBoss%206.1/job/activemq-5.9.0.redhat-6-1-x-stable-platform/11/jdk=jdk7,label=ubuntu/
                             // starting from http://localhost:8080/job/BuildResults/HTML_Report/ or
-                            String testResult = br.getFailedTests() + "/" + br.getTestsRun()     // TODO turn into a link back to test result?
+                            // http://localhost:8080/job/BuildResults/6/HTML_Report/
+
+                            String testResult = "<a href=\"\">" + br.getFailedTests() + "/" + br.getTestsRun() + "</a>"    // TODO turn into a link back to test result?
                                     + "<br/><small>(" + br.getFormattedDuration() + ")</small>";    // TODO this needs to be smaller.
                             if (br.getResult().equalsIgnoreCase("success")) {
                                 writer.write(passedTdOpenTag + testResult + tdCloseTag);
@@ -269,6 +271,10 @@ public class SummarizeBuildResults {
 	public static void main(String[] args) throws JAXBException, IOException {
 		String testRoot ="/mnt/hudson/jobs";
         String directoryMatchString = ACCEPT_STRING_RH_6_1;
+
+        System.out.println(">>> JAVA_HOME? " + System.getenv("JAVA_HOME"));
+        System.out.println(">>> JOB_URL? " + System.getenv("JOB_URL"));
+        System.out.println(">>> JOB_NAME? " + System.getenv("JOB_NAME"));
 
 		if (args.length > 0) {
             testRoot = args[0];
