@@ -4,17 +4,24 @@ import generated.hudson.build.ActionsType;
 import generated.hudson.build.HudsonTasksJunitTestResultActionType;
 import generated.hudson.build.MatrixRunType;
 import org.apache.commons.io.FileUtils;
-import org.apache.poi.hssf.usermodel.*;
-import org.apache.poi.hssf.util.HSSFColor;
-import org.apache.poi.ss.usermodel.*;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
 import javax.xml.transform.stream.StreamSource;
-import java.io.*;
-import java.util.*;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Create a summary of result of the Platform builds on Hudson in a single html page
@@ -33,7 +40,9 @@ public class SummarizeBuildResults {
     // RE to select which test directories we want results from.
     private static final String ACCEPT_STRING_RH_6_1 = ".*6[-\\.]1.*platform";
 
-
+    /**
+     *
+     */
     private static Unmarshaller unmarshaller = null;
 	static {
 		try {
@@ -105,78 +114,9 @@ public class SummarizeBuildResults {
 		
 		return directories;
 	}
-	
- 
-	/**
-	 *   Create an Excel spreadsheet containing 2 sheets on build results from the directory "root".  There will
-     *   be both a summary and details sheet.
-     *
-     *   For content, we will select the latest platform build result for 7.2 builds or the directory specified.
-	 * 
-	 * 
-	 * @param root
-     * @param workbook
-	 * @throws JAXBException
-	 */
-	public void createSummary(File root, HSSFWorkbook workbook, String directoryMatchExpression) throws JAXBException, IOException {
-        HSSFSheet summarySheet = workbook.createSheet("Summary");
-        printSpreadsheetHeaders(workbook, summarySheet);
-        int summaryRowIndex=2;
-
-        HSSFSheet detailsSheet = workbook.createSheet("Details");
-        int detailsRowIndex=0;
-
-        Font whiteFont = workbook.createFont();
-        whiteFont.setColor(HSSFColor.WHITE.index);
-
-        HSSFCellStyle passedStyle = getPassedCellStyle(workbook, whiteFont);
-        HSSFCellStyle failedTestsStyle = getFailedTestsCellStyle(workbook, whiteFont);
-        HSSFCellStyle failedBuildStyle = getFailedBuildCellStyle(workbook, whiteFont);
-
-        Map<String, List<BuildResult>> allResults = getAllResults(root, directoryMatchExpression);
-
-        List<String> projectNames = new ArrayList<String>(allResults.keySet());
-		Collections.sort(projectNames);
-        for (String projectName : projectNames) {
-            HSSFRow summarySheetRow = summarySheet.createRow(summaryRowIndex++);
-            int summaryCellIndex = 0;
-
-			List<BuildResult> buildResults = allResults.get(projectName);
-			Collections.reverse(buildResults);
-			Collections.sort(buildResults, new BuildResultComparator());
-
-            HSSFCell platformNameCell = summarySheetRow.createCell(summaryCellIndex++);
-            platformNameCell.setCellValue(projectName);
-
-				for (PLATFORM platform : PLATFORM.values()) {
-				for (JDK jdk : JDK.values()) {
-					for (BuildResult br: buildResults) {
-						if (platform.equals(br.getPlatform()) && jdk.equals(br.getJdk()) ) {
-                            addDetailsLine(detailsSheet, br, detailsRowIndex++);
-                            String blah = br.getFailedTests() + "/" + br.getTestsRun();
-                            HSSFCell summarySheetRowCell = summarySheetRow.createCell(summaryCellIndex++);
-
-                            if (br.getResult().equalsIgnoreCase("success")) {
-                                summarySheetRowCell.setCellStyle(passedStyle);
-                            } else if (br.getTestsRun().equals(0)) {
-                                summarySheetRowCell.setCellStyle(failedBuildStyle);
-                            } else {
-                                summarySheetRowCell.setCellStyle(failedTestsStyle);
-                            }
-                            summarySheetRowCell.setCellValue(blah);
-						}
-					}
-
-				}
-			}
-            detailsRowIndex++;  // skip a row on the details sheet at the end of each project;
-		}
-
-        summarySheet.setColumnWidth(0, 40 * 256);   // Cell widths are in units of 1/256 of a character
-	}
 
     /**
-     * Create the summary as an HTML table which can be pasted into a DOCSPACE page
+     * Write the report to a file.
      *
      * @param root
      * @throws JAXBException
@@ -186,16 +126,17 @@ public class SummarizeBuildResults {
         FileWriter writer = getResultFileWriter();
         writer.write("<html>" + NEW_LINE);
         writer.write("<body>" + NEW_LINE);
-        // TODO remove?
         String style = "<style><!--\n" +
                 "table { border-collapse: collapse; font-family: Futura, Arial, sans-serif; } caption { font-size: larger; margin: 1em auto; } th, td { padding: .65em; } th, thead { background: #000; color: #fff; border: 1px solid #000; } td { border: 1px solid #777; }\n" +
                 "--></style>";
         writer.write(style + NEW_LINE);
         writer.write("<table border=\"1\">"  + NEW_LINE);
-        writer.write("<caption>JBoss Fuse 6 Platform Test Results as of " + new Date().toString() + "</caption>" + NEW_LINE);
+        writer.write("<caption>JBoss Fuse 6.1 Platform Test Results as of " + new Date().toString() + "</caption>" + NEW_LINE);
         printHtmlHeaders(writer);
 
         Map<String, List<BuildResult>> allResults = getAllResults(root, directoryMatchExpression);
+
+        // Write one row for each project
         List<String> projectNames = new ArrayList<String>(allResults.keySet());
         Collections.sort(projectNames);
         for (String projectName : projectNames) {
@@ -215,7 +156,7 @@ public class SummarizeBuildResults {
                             // http://ci.fusesource.com/hudson/view/JBoss%206.1/job/activemq-5.9.0.redhat-6-1-x-stable-platform/11/jdk=jdk7,label=ubuntu/
                             // starting from http://localhost:8080/job/BuildResults/HTML_Report/ or
                             String testResult = br.getFailedTests() + "/" + br.getTestsRun()     // TODO turn into a link back to test result?
-                                    + "<br/><small>" + br.getFormattedDuration() + "</small>";
+                                    + "<br/><small>(" + br.getFormattedDuration() + ")</small>";    // TODO this needs to be smaller.
                             if (br.getResult().equalsIgnoreCase("success")) {
                                 writer.write(passedTdOpenTag + testResult + tdCloseTag);
                             } else if (br.getTestsRun().equals(0)) {
@@ -241,12 +182,12 @@ public class SummarizeBuildResults {
         writer.close();
     }
 
+    /**
+     *
+     * @return
+     * @throws IOException
+     */
     private FileWriter getResultFileWriter() throws IOException {
-        /*Locale currentLocale =  Locale.getDefault();   // should be en_US
-        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMMdd", currentLocale);
-        Date today = new Date();
-        String resultFileName = "result" + formatter.format(today) + ".html";
-        return new FileWriter(resultFileName); */
         File resultsDir = new File("results");
         resultsDir.mkdir();
         String resultsFileName = "results/results.html";
@@ -272,90 +213,6 @@ public class SummarizeBuildResults {
         writer.write("</thead>" + NEW_LINE);
     }
 
-
-    private HSSFCellStyle getFailedBuildCellStyle(HSSFWorkbook workbook, Font whiteFont) {
-        HSSFCellStyle failedBuildStyle = workbook.createCellStyle();
-        failedBuildStyle.setFillForegroundColor(HSSFColor.PINK.index);
-        failedBuildStyle.setFillPattern(CellStyle.SPARSE_DOTS);
-        failedBuildStyle.setFont(whiteFont);
-        return failedBuildStyle;
-    }
-
-    private HSSFCellStyle getFailedTestsCellStyle(HSSFWorkbook workbook, Font whiteFont) {
-        HSSFCellStyle failedTestsStyle = workbook.createCellStyle();
-        failedTestsStyle.setFillForegroundColor(HSSFColor.YELLOW.index);
-        failedTestsStyle.setFillPattern(CellStyle.FINE_DOTS);
-        failedTestsStyle.setFont(whiteFont);
-        return failedTestsStyle;
-    }
-
-    private HSSFCellStyle getPassedCellStyle(HSSFWorkbook workbook, Font whiteFont) {
-        HSSFCellStyle passedStyle = workbook.createCellStyle();
-        passedStyle.setFillForegroundColor(HSSFColor.LIGHT_GREEN.index);
-        passedStyle.setFillPattern(CellStyle.FINE_DOTS);
-        passedStyle.setFont(whiteFont);
-        return passedStyle;
-    }
-
-    public void addDetailsLine(Sheet detailsSheet, BuildResult buildResult, int rowIndex) {
-        Row row = detailsSheet.createRow(rowIndex);
-
-        int detailsCellIndex=0;
-        row.createCell(detailsCellIndex++).setCellValue(buildResult.getName());
-        row.createCell(detailsCellIndex++).setCellValue(buildResult.getRunDate());
-        row.createCell(detailsCellIndex++).setCellValue(buildResult.getJdk().toString());
-        row.createCell(detailsCellIndex++).setCellValue(buildResult.getPlatform().toString());
-        row.createCell(detailsCellIndex++).setCellValue(buildResult.getResult());
-        row.createCell(detailsCellIndex++).setCellValue("Tests Run");
-        row.createCell(detailsCellIndex++).setCellValue(buildResult.getTestsRun());
-        row.createCell(detailsCellIndex++).setCellValue("Failed");
-        row.createCell(detailsCellIndex++).setCellValue(buildResult.getFailedTests());
-        row.createCell(detailsCellIndex++).setCellValue("Duration");
-        row.createCell(detailsCellIndex++).setCellValue(buildResult.getFormattedDuration());
-    }
-
-    /**
-     * Add the headers to the worksheet.
-     *
-     * @param workbook
-     * @param summarySheet
-     */
-	private void printSpreadsheetHeaders(Workbook workbook, Sheet summarySheet) {
-        Font font = workbook.createFont();
-        font.setBoldweight(Font.BOLDWEIGHT_BOLD);
-        CellStyle style = workbook.createCellStyle();
-        style.setWrapText(true);
-        style.setFont(font);
-
-		// Print 2 header rows. The top row just has platform names (which should go above jdk)
-        Row row = summarySheet.createRow(0);
-        row.setRowStyle(style);
-
-        int cellIndex = 0;
-        Cell cell = row.createCell(cellIndex++);
-        for (PLATFORM platform : PLATFORM.values()) {
-            for (JDK jdk : JDK.values()) {
-                cell = row.createCell(cellIndex++);
-                cell.setCellStyle(style);
-                cell.setCellValue(platform.toString());
-            }
-        }
-
-        // Second row
-        row = summarySheet.createRow(1);
-        row.setRowStyle(style);
-        row.createCell(0).setCellValue("Platform");
-        cellIndex = 1;
-		for (PLATFORM platform : PLATFORM.values()) {
-			for (JDK jdk : JDK.values()) {
-                cell = row.createCell(cellIndex++);
-                cell.setCellStyle(style);
-                cell.setCellValue(jdk.toString());
-			}
-		}
-	}
-
-
     /**
      * TODO summarize; exactly what does this return?
      *
@@ -363,7 +220,7 @@ public class SummarizeBuildResults {
      * @return
      */
     private Map<String, List<BuildResult>> getAllResults(File root, String directoryMatchExpression) throws IOException{
-        Map<String, List<BuildResult>> allResults = new HashMap<String, List<BuildResult>>();
+        Map<String, List<BuildResult>> allResults = new HashMap<>();
         List<File>platformDirectories = getPlatformDirectories(root, directoryMatchExpression);
         for (File platformDirectory : platformDirectories) {
             for (PLATFORM platform : PLATFORM.values()) {
@@ -387,7 +244,7 @@ public class SummarizeBuildResults {
                             // TODO need to store by platformDirectory.getName() (which is projectname) jdk, platform
                             List<BuildResult> platformResults = allResults.get(platformDirectory.getName());
                             if (platformResults == null) {
-                                platformResults = new ArrayList<BuildResult>();
+                                platformResults = new ArrayList<>();
                                 allResults.put(platformDirectory.getName(), platformResults);
                             }
                             platformResults.add(buildResult);
@@ -410,33 +267,21 @@ public class SummarizeBuildResults {
 	 * @throws JAXBException 
 	 */
 	public static void main(String[] args) throws JAXBException, IOException {
-        // HSSFWorkbook workbook = new HSSFWorkbook();      // TODO remove excel stuff?
 		String testRoot ="/mnt/hudson/jobs";
-        testRoot = "/Users/kearls/.hudson/jobs/";
         String directoryMatchString = ACCEPT_STRING_RH_6_1;
 
-		if (args.length > 0) {               // TODO add second parameter for RE
-            for (int i=0; i < args.length; i++ )  {
-                System.out.println(">>> Arg " + i + " " + args[i]);
-            }
+		if (args.length > 0) {
             testRoot = args[0];
             if (args.length > 1) {
                 directoryMatchString = args[1];
             }
 		} 
 
-		
 		System.out.println("Starting at " + testRoot + " matchings on [" + directoryMatchString + "]");
 		SummarizeBuildResults me = new SummarizeBuildResults();
 		File theRoot = new File(testRoot);
-		// me.createSummary(theRoot, workbook, ACCEPT_STRING_RH_6_1);
-        me.createHTMLSummary(theRoot, ACCEPT_STRING_RH_6_1);
-
-        /*FileOutputStream fileOut = new FileOutputStream("workbook.xls");
-        workbook.write(fileOut);
-        fileOut.close(); */
+        me.createHTMLSummary(theRoot, directoryMatchString);
 	}
-
 }
 
 
@@ -458,17 +303,13 @@ class PlatformDirectoryFilter implements FileFilter {
         this.matchRegularExpression = target;
     }
 
+    @Override
 	public boolean accept(File pathname) {
 		String name = pathname.getName();
-        //if ((name.equalsIgnoreCase("fuseenterprise-master-platform")) || ((name.contains("7-2") || name.contains("7.2")) && (name.endsWith("-platform")))) {
-       //if (name.matches(".*7.*1.*-shipped"))
-        //if ((name.contains("7-1") || name.contains("7.1")) && (name.contains("shipped") && name.contains("platform"))) {
-        //if ((name.equalsIgnoreCase("fuseenterprise-master-platform")) || ((name.contains("7-2") || name.contains("7.2")) && (name.endsWith("-platform")))) {
-        //System.out.println(">>>> Matching [" + name + " ] using RE [" + matchRegularExpression + "]");
         if (name.matches(matchRegularExpression)) {
-                return true;
+            return true;
 		} else {
-			return false;
+	        return false;
 		}
 	}
 }
@@ -480,6 +321,7 @@ class PlatformDirectoryFilter implements FileFilter {
  *
  */
 class BuildDirectoryComparator implements Comparator<File> {
+    @Override
 	public int compare(File first, File second) {
 		if (first.lastModified() > second.lastModified()) {
 			return 1;

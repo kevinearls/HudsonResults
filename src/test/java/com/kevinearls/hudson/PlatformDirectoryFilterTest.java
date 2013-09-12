@@ -1,13 +1,9 @@
 package com.kevinearls.hudson;
 
-import org.junit.After;
-import org.junit.Before;
+import org.apache.commons.io.IOUtils;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -77,7 +73,6 @@ public class PlatformDirectoryFilterTest {
         List<String> testDirectoryNames = Arrays.asList(directoryNames);
         for (String testDirectoryName : testDirectoryNames) {
             LOG.info(">>>> Accept: " + testDirectoryName);
-            System.out.println(">>>> Accept? " + testDirectoryName + "?");
             File testDirectory = new File(testDirectoryName);
             boolean accepted = pdf.accept(testDirectory);
             assertTrue(accepted);
