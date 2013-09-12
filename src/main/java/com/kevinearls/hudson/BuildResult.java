@@ -3,7 +3,7 @@ package com.kevinearls.hudson;
 public class BuildResult {
 	private String name;
 	private String runDate;
-	private String result;		// from MatrixRunType.getResult..I think this includes SUCESS, FAILURE.
+	private String result;		// from MatrixRunType.getResult..I think this includes SUCCESS, FAILURE.
 	private Integer testsRun;
 	private Integer failedTests;
     private Integer duration;
@@ -35,7 +35,7 @@ public class BuildResult {
 	
 	
 	/**
-	 * TODO return a csv compatible string?
+	 *
 	 */
 	@Override
 	public String toString() {

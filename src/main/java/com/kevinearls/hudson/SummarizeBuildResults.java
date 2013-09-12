@@ -92,9 +92,10 @@ public class SummarizeBuildResults {
 
 
 	/**
-	 * Return a list of 7.1 platform test result directories
+	 * Return a list of platform test result directories matching directoryMatchExpression
 	 * 
 	 * @param root this should be the root of the Hudson jobs directory
+     * @param directoryMatchExpression regular expression for // TODO explain and update everywhere.
 	 */
 	private List<File> getPlatformDirectories(File root, String directoryMatchExpression) {
 		PlatformDirectoryFilter pdf = new PlatformDirectoryFilter(directoryMatchExpression);
@@ -208,8 +209,13 @@ public class SummarizeBuildResults {
                 for (JDK jdk : JDK.values()) {
                     for (BuildResult br: buildResults) {
                         if (platform.equals(br.getPlatform()) && jdk.equals(br.getJdk()) && !(jdk.equals(JDK.jdk6) && platform.equals(PLATFORM.rhel))) {
-                            String testResult = br.getFailedTests() + "/" + br.getTestsRun() + "|" + br.getFormattedDuration();
 
+
+                            // Link needs to be something like:
+                            // http://ci.fusesource.com/hudson/view/JBoss%206.1/job/activemq-5.9.0.redhat-6-1-x-stable-platform/11/jdk=jdk7,label=ubuntu/
+                            // starting from http://localhost:8080/job/BuildResults/HTML_Report/ or
+                            String testResult = br.getFailedTests() + "/" + br.getTestsRun()     // TODO turn into a link back to test result?
+                                    + "<br/><small>" + br.getFormattedDuration() + "</small>";
                             if (br.getResult().equalsIgnoreCase("success")) {
                                 writer.write(passedTdOpenTag + testResult + tdCloseTag);
                             } else if (br.getTestsRun().equals(0)) {
@@ -407,12 +413,20 @@ public class SummarizeBuildResults {
         // HSSFWorkbook workbook = new HSSFWorkbook();      // TODO remove excel stuff?
 		String testRoot ="/mnt/hudson/jobs";
         testRoot = "/Users/kearls/.hudson/jobs/";
+        String directoryMatchString = ACCEPT_STRING_RH_6_1;
+
 		if (args.length > 0) {               // TODO add second parameter for RE
+            for (int i=0; i < args.length; i++ )  {
+                System.out.println(">>> Arg " + i + " " + args[i]);
+            }
             testRoot = args[0];
+            if (args.length > 1) {
+                directoryMatchString = args[1];
+            }
 		} 
 
 		
-		System.out.println("Starting at " + testRoot);
+		System.out.println("Starting at " + testRoot + " matchings on [" + directoryMatchString + "]");
 		SummarizeBuildResults me = new SummarizeBuildResults();
 		File theRoot = new File(testRoot);
 		// me.createSummary(theRoot, workbook, ACCEPT_STRING_RH_6_1);

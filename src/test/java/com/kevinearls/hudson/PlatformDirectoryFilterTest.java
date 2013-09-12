@@ -46,7 +46,7 @@ public class PlatformDirectoryFilterTest {
     @Test
     public void test61() throws Exception {      // TODO rename
         List<String> testDirectoryNames = loadTestFileNames();
-        System.out.println(">>>> Got " + testDirectoryNames.size() + " file names");
+        //System.out.println(">>>> Got " + testDirectoryNames.size() + " file names");
 
         int acceptedCount = 0;
         PlatformDirectoryFilter pdf = new PlatformDirectoryFilter(ACCEPT_STRING_RH_6_1);
@@ -58,7 +58,7 @@ public class PlatformDirectoryFilterTest {
             }
         }
 
-        System.out.println(">>>> Accepted " + acceptedCount);
+        //ystem.out.println(">>>> Accepted " + acceptedCount);
         assertEquals(23, acceptedCount);
     }
 
