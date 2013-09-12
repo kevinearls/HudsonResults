@@ -281,10 +281,6 @@ public class SummarizeBuildResults {
         testRoot="/Users/kearls/mytools/data/jobs";
         String directoryMatchString = ACCEPT_STRING_RH_6_1;
 
-        System.out.println(">>> JAVA_HOME? " + System.getenv("JAVA_HOME"));
-        System.out.println(">>> JOB_URL? " + System.getenv("JOB_URL"));
-        System.out.println(">>> JOB_NAME? " + System.getenv("JOB_NAME"));
-
 		if (args.length > 0) {
             testRoot = args[0];
             if (args.length > 1) {
