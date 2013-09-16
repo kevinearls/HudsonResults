@@ -26,21 +26,21 @@ import java.util.Map;
 /**
  * Create a summary of result of the Platform builds on Hudson in a single html page
  * 
- * @author kearls
+ * @author Kevin Earls
  *
  */
 public class SummarizeBuildResults {
-
     private static final String passedTdOpenTag = "<td style=\"background-color: #2E8B57;\">";
     private static final String failedTestsTdOpenTag = "<td style=\"background-color: #ffd700;\">";
     private static final String failedBuildTdOpenTag =  "<td style=\"background-color: #dc143c;\">";
     private static final String tdCloseTag = "</td>";
     public static final String NEW_LINE = "\n";
+    private static String hudsonJobsRootName ="/mnt/hudson/jobs";
 
     // RE to select which test directories we want results from.
     private static final String ACCEPT_STRING_RH_6_1 = ".*6[-\\.]1.*platform";
 
-    //
+    // Root of URL to link back to test results
     private static final String REPORT_URL_ROOT="http://ci.fusesource.com/hudson/job/";
 
     /**
@@ -59,8 +59,8 @@ public class SummarizeBuildResults {
 	/**
 	 * Use JAXB to create a MatrixRunType object from the file
 	 * 
-	 * @param buildFileName
-	 * @return
+	 * @param buildFileName Name of the build.xml file with results for a particular test run
+     * @return JAXB representation of the test result
 	 * @throws JAXBException
 	 */
 	private MatrixRunType getTestSuiteFromFile(String buildFileName) throws JAXBException {
@@ -82,7 +82,7 @@ public class SummarizeBuildResults {
             List<File> fud = Arrays.asList(targetDirectory.listFiles());
 
             // Remove symlinks, which are just numbered.  We want to be able to use the date.
-            List<File> contents = new ArrayList<File>();
+            List<File> contents = new ArrayList<>();
             for (File f : fud) {
                 if (!FileUtils.isSymlink(f)) {
                     contents.add(f);
@@ -104,14 +104,15 @@ public class SummarizeBuildResults {
 
 
 	/**
-	 * Return a list of platform test result directories matching directoryMatchExpression
+	 * Return a list of platform test result directories matching the directoryMatchExpression.
+     * For example, to get all 6.1 platform results, use ".*6[-\\.]1.*platform"
 	 * 
-	 * @param root this should be the root of the Hudson jobs directory
-     * @param directoryMatchExpression regular expression for // TODO explain and update everywhere.
+	 * @param hudsonJobsRoot the root of the Hudson jobs directory, i.e. /mnt/hudson/jobs
+     * @param directoryMatchExpression regular expression for selecting target directories
 	 */
-	private List<File> getPlatformDirectories(File root, String directoryMatchExpression) {
+	private List<File> getPlatformDirectories(File hudsonJobsRoot, String directoryMatchExpression) {
 		PlatformDirectoryFilter pdf = new PlatformDirectoryFilter(directoryMatchExpression);
-        File[] files = root.listFiles(pdf);
+        File[] files = hudsonJobsRoot.listFiles(pdf);
 		List<File> directories = Arrays.asList(files);
         Collections.sort(directories);
 		
@@ -121,12 +122,12 @@ public class SummarizeBuildResults {
     /**
      * Write the report to a file.
      *
-     * @param root
+     * @param writer FileWriter set to desired output file
+     *               @param allResults Map of the results from desired tests
      * @throws JAXBException
      * @throws IOException
      */
-    public void createHTMLSummary(File root, String directoryMatchExpression) throws JAXBException, IOException {
-        FileWriter writer = getResultFileWriter();
+    public void createHTMLSummary(FileWriter writer, Map<String, List<BuildResult>> allResults) throws JAXBException, IOException {
         writer.write("<html>" + NEW_LINE);
         writer.write("<body>" + NEW_LINE);
         String style = "<style><!--\n" +
@@ -137,10 +138,8 @@ public class SummarizeBuildResults {
         writer.write("<caption>JBoss Fuse 6.1 Platform Test Results as of " + new Date().toString() + "</caption>" + NEW_LINE);
         printHtmlHeaders(writer);
 
-        Map<String, List<BuildResult>> allResults = getAllResults(root, directoryMatchExpression);
-
         // Write one row for each project
-        List<String> projectNames = new ArrayList<String>(allResults.keySet());
+        List<String> projectNames = new ArrayList<>(allResults.keySet());
         Collections.sort(projectNames);
         for (String projectName : projectNames) {
             writer.write("    <tr>");
@@ -153,18 +152,9 @@ public class SummarizeBuildResults {
                 for (JDK jdk : JDK.values()) {
                     for (BuildResult br: buildResults) {
                         if (platform.equals(br.getPlatform()) && jdk.equals(br.getJdk()) && !(jdk.equals(JDK.jdk6) && platform.equals(PLATFORM.rhel))) {
-
-
-                            // Link needs to be something like:
-                            // http://ci.fusesource.com/hudson/view/JBoss%206.1/job/activemq-5.9.0.redhat-6-1-x-stable-platform/11/jdk=jdk7,label=ubuntu/
-                            // starting from http://localhost:8080/job/BuildResults/HTML_Report/ or
-                            // http://localhost:8080/job/BuildResults/6/HTML_Report/
-
-                            // Need http://ci.fusesource.com/hudson/job/activemq-5.9.0.redhat-6-1-x-stable-platform/11/jdk=jdk7,label=ubuntu/
                             String linkToResultsPage = REPORT_URL_ROOT + projectName + "/" + br.getBuildNumber() + "/" + "jdk=" + jdk + ",label=" + platform + "/";
-                            //System.out.println(">>>> got " + linkToResultsPage);
 
-                            String testResult = "<a href=\"" + linkToResultsPage + "\">" + br.getFailedTests() + "/" + br.getTestsRun() + "</a>"    // TODO turn into a link back to test result?
+                            String testResult = "<a href=\"" + linkToResultsPage + "\">" + br.getFailedTests() + "/" + br.getTestsRun() + "</a>"
                                     + "<br/><small>(" + br.getFormattedDuration() + ")</small>";    // TODO this needs to be smaller.
                             if (br.getResult().equalsIgnoreCase("success")) {
                                 writer.write(passedTdOpenTag + testResult + tdCloseTag);
@@ -193,7 +183,7 @@ public class SummarizeBuildResults {
 
     /**
      *
-     * @return
+     * @return A FileWriter set to wherever we want to write the report
      * @throws IOException
      */
     private FileWriter getResultFileWriter() throws IOException {
@@ -223,14 +213,13 @@ public class SummarizeBuildResults {
     }
 
     /**
-     * TODO summarize; exactly what does this return?
-     *
-     * @param root
-     * @return
+     * @param hudsonJobsRoot the root of the Hudson jobs directory, i.e. /mnt/hudson/jobs
+     * @param directoryMatchExpression regular expression to select only tests we want
+     * Map of all test results
      */
-    private Map<String, List<BuildResult>> getAllResults(File root, String directoryMatchExpression) throws IOException{
+    private Map<String, List<BuildResult>> getAllResults(File hudsonJobsRoot, String directoryMatchExpression) throws IOException{
         Map<String, List<BuildResult>> allResults = new HashMap<>();
-        List<File>platformDirectories = getPlatformDirectories(root, directoryMatchExpression);
+        List<File>platformDirectories = getPlatformDirectories(hudsonJobsRoot, directoryMatchExpression);
         for (File platformDirectory : platformDirectories) {
             for (PLATFORM platform : PLATFORM.values()) {
                 for (JDK jdk : JDK.values()) {
@@ -273,25 +262,28 @@ public class SummarizeBuildResults {
 
 
 	/**
-	 * @param args
+	 * @param args optional command line args
 	 * @throws JAXBException 
 	 */
 	public static void main(String[] args) throws JAXBException, IOException {
-		String testRoot ="/mnt/hudson/jobs";
-        testRoot="/Users/kearls/mytools/data/jobs";
-        String directoryMatchString = ACCEPT_STRING_RH_6_1;
+        hudsonJobsRootName="/mnt/hudson/jobs";
+        String directoryMatchExpression = ACCEPT_STRING_RH_6_1;
 
 		if (args.length > 0) {
-            testRoot = args[0];
+            hudsonJobsRootName = args[0];
             if (args.length > 1) {
-                directoryMatchString = args[1];
+                directoryMatchExpression = args[1];
+
             }
 		} 
 
-		System.out.println("Starting at " + testRoot + " matchings on [" + directoryMatchString + "]");
+		System.out.println("Starting at " + hudsonJobsRootName + " matchings on [" + directoryMatchExpression + "]");
 		SummarizeBuildResults me = new SummarizeBuildResults();
-		File theRoot = new File(testRoot);
-        me.createHTMLSummary(theRoot, directoryMatchString);
+		File theRoot = new File(hudsonJobsRootName);
+        File hudsonJobsRoot = new File(hudsonJobsRootName);
+        FileWriter writer = me.getResultFileWriter();
+        Map<String, List<BuildResult>> allResults = me.getAllResults(hudsonJobsRoot, directoryMatchExpression);
+        me.createHTMLSummary(writer, allResults);
 	}
 }
 
@@ -303,12 +295,7 @@ public class SummarizeBuildResults {
  *
  */
 class PlatformDirectoryFilter implements FileFilter {
-    final String DEFAULT_MATCH_STRING = "/*7[-\\.]1.*platform"; // TODO should this be removed?
     String matchRegularExpression = "";
-
-    public PlatformDirectoryFilter() {
-        this.matchRegularExpression = DEFAULT_MATCH_STRING;
-    }
 
     public PlatformDirectoryFilter(String target) {
         this.matchRegularExpression = target;
@@ -317,11 +304,7 @@ class PlatformDirectoryFilter implements FileFilter {
     @Override
 	public boolean accept(File pathname) {
 		String name = pathname.getName();
-        if (name.matches(matchRegularExpression)) {
-            return true;
-		} else {
-	        return false;
-		}
+        return name.matches(matchRegularExpression);
 	}
 }
 
@@ -355,7 +338,6 @@ class BuildResultComparator implements Comparator<BuildResult> {
 		if (nameValue != 0) {
 			return nameValue;
 		} else {
-			// TODO sort on date too?
 			int platformValue = b1.getPlatform().compareTo(b2.getPlatform());
 			if (platformValue != 0) {
 				return platformValue;
